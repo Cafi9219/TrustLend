@@ -1,0 +1,148 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-slate-50 text-slate-900;
+  }
+}
+
+/* Custom smooth transitions and clean fintech accents */
+.fintech-mesh-bg {
+  background-color: #f8fafc;
+  background-image: 
+    radial-gradient(at 15% 15%, rgba(37, 99, 235, 0.04) 0px, transparent 50%),
+    radial-gradient(at 85% 85%, rgba(16, 185, 129, 0.04) 0px, transparent 50%),
+    radial-gradient(at 50% 50%, rgba(99, 102, 241, 0.03) 0px, transparent 50%);
+}
+
+.fintech-grid-pattern {
+  background-image: radial-gradient(rgba(148, 163, 184, 0.25) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+.fintech-glass {
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.fintech-card-hover {
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
+}
+
+.fintech-card-hover:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 16px 32px -6px rgba(15, 23, 42, 0.09);
+  border-color: rgba(37, 99, 235, 0.3);
+}
+
+/* Keyframes for subtle financial market movements */
+@keyframes financialScanner {
+  0% {
+    left: -10%;
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.8;
+  }
+  80% {
+    opacity: 0.8;
+  }
+  100% {
+    left: 110%;
+    opacity: 0;
+  }
+}
+
+@keyframes floatGentle {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes floatGentleReverse {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(5px);
+  }
+}
+
+@keyframes pulseHalo {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1.4);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+}
+
+@keyframes flowDash {
+  0% {
+    stroke-dashoffset: 200;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes flowReverseDash {
+  0% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: 200;
+  }
+}
+
+@keyframes countGlow {
+  0%, 100% {
+    opacity: 0.9;
+  }
+  50% {
+    opacity: 1;
+    text-shadow: 0 0 12px rgba(37, 99, 235, 0.2);
+  }
+}
+
+.animate-scanner {
+  animation: financialScanner 5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.animate-float-card {
+  animation: floatGentle 4s ease-in-out infinite;
+}
+
+.animate-float-card-delay {
+  animation: floatGentle 4.5s ease-in-out infinite 2s;
+}
+
+.animate-float-card-3 {
+  animation: floatGentleReverse 3.8s ease-in-out infinite 1s;
+}
+
+.animate-halo {
+  animation: pulseHalo 2.6s cubic-bezier(0, 0.2, 0.8, 1) infinite;
+}
+
+.animate-trend-flow {
+  stroke-dasharray: 8 6;
+  animation: flowDash 2.5s linear infinite;
+}
+
+.animate-return-flow {
+  stroke-dasharray: 6 5;
+  animation: flowReverseDash 3s linear infinite;
+}

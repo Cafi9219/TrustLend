@@ -1,0 +1,110 @@
+{
+  "users": [
+    {
+      "id": "usr_demo_borrower",
+      "name": "Rohan Mehra",
+      "email": "rohan.borrower@trustlend.in",
+      "role": "borrower",
+      "avatarUrl": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
+      "createdAt": "2026-01-10T00:00:00.000Z",
+      "phone": "+91 98765 43210",
+      "kycVerified": true,
+      "walletBalance": 0
+    },
+    {
+      "id": "usr_demo_lender",
+      "name": "Ananya Roy",
+      "email": "ananya.lender@trustlend.in",
+      "role": "lender",
+      "avatarUrl": "https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80",
+      "createdAt": "2026-01-10T00:00:00.000Z",
+      "phone": "+91 98765 43210",
+      "kycVerified": true,
+      "walletBalance": 0
+    }
+  ],
+  "loans": [
+    {
+      "id": "LN-IND-8041",
+      "userId": "usr_demo_borrower",
+      "purpose": "Kirana Store Inventory Expansion",
+      "amount": 50000,
+      "tenureMonths": 12,
+      "interestRate": 9.5,
+      "emiAmount": 4384,
+      "status": "Active",
+      "disbursedDate": "12 Jan 2026",
+      "nextDueDate": "12 May 2026",
+      "totalRepaid": 17536,
+      "outstandingAmount": 35072
+    },
+    {
+      "id": "LN-IND-9214",
+      "userId": "usr_demo_borrower",
+      "purpose": "Mobile Repair Equipment Upgrade",
+      "amount": 25000,
+      "tenureMonths": 6,
+      "interestRate": 9.0,
+      "emiAmount": 4277,
+      "status": "Active",
+      "disbursedDate": "05 Feb 2026",
+      "nextDueDate": "05 May 2026",
+      "totalRepaid": 12831,
+      "outstandingAmount": 12831
+    }
+  ],
+  "marketplace": [
+    {
+      "id": "MKT-101",
+      "borrowerName": "Rajesh Kumar",
+      "purpose": "Kirana Store Modernization & Inventory",
+      "amount": 50000,
+      "fundedAmount": 38000,
+      "interestRate": 9.5,
+      "tenureMonths": 12,
+      "minTicket": 500,
+      "riskScore": 765,
+      "creditGrade": "A+",
+      "daysRemaining": 3
+    },
+    {
+      "id": "MKT-102",
+      "borrowerName": "Sunita Verma",
+      "purpose": "Women Apparel Boutique Tailoring Machine",
+      "amount": 35000,
+      "fundedAmount": 26000,
+      "interestRate": 9.2,
+      "tenureMonths": 9,
+      "minTicket": 500,
+      "riskScore": 740,
+      "creditGrade": "A",
+      "daysRemaining": 5
+    },
+    {
+      "id": "MKT-103",
+      "borrowerName": "Amit Patil",
+      "purpose": "Commercial Solar Rooftop Panel Setup",
+      "amount": 80000,
+      "fundedAmount": 45000,
+      "interestRate": 9.5,
+      "tenureMonths": 18,
+      "minTicket": 1000,
+      "riskScore": 790,
+      "creditGrade": "A+",
+      "daysRemaining": 7
+    },
+    {
+      "id": "MKT-104",
+      "borrowerName": "Vikram Singh",
+      "purpose": "Organic Agro Produce Storage Unit",
+      "amount": 40000,
+      "fundedAmount": 20000,
+      "interestRate": 8.8,
+      "tenureMonths": 6,
+      "minTicket": 500,
+      "riskScore": 725,
+      "creditGrade": "B+",
+      "daysRemaining": 2
+    }
+  ]
+}
