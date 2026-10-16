@@ -8,6 +8,8 @@ import { ContactPage } from '../pages/ContactPage';
 import { LoginPage } from '../pages/LoginPage';
 import { RegisterPage } from '../pages/RegisterPage';
 import { ProfilePage } from '../pages/ProfilePage';
+import { PhoneVerificationPage } from '../pages/PhoneVerificationPage';
+import { DEMO_BORROWER_ID, DEMO_LENDER_ID } from '../services/dbService';
 
 // Borrower Pages
 import { BorrowerDashboardPage } from '../pages/borrower/BorrowerDashboardPage';
@@ -71,9 +73,15 @@ const RoutePersistenceManager: React.FC = () => {
     }
   }, []);
 
-  // Save current route whenever navigating (excluding login/register/home)
+  // Save current route whenever navigating (excluding login/register/home/verify-phone)
   useEffect(() => {
-    if (location.pathname && location.pathname !== '/' && location.pathname !== '/login' && location.pathname !== '/register') {
+    if (
+      location.pathname &&
+      location.pathname !== '/' &&
+      location.pathname !== '/login' &&
+      location.pathname !== '/register' &&
+      location.pathname !== '/verify-phone'
+    ) {
       localStorage.setItem(LAST_ROUTE_KEY, location.pathname);
     }
   }, [location.pathname]);
@@ -92,6 +100,13 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRole }
   if (!currentUser) {
     return <Navigate to="/" replace />;
   }
+
+  // Non-demo users must have verified phone number before accessing protected routes
+  const isDemoUser = currentUser.id === DEMO_BORROWER_ID || currentUser.id === DEMO_LENDER_ID || currentUser.isTestAccount;
+  if (!isDemoUser && currentUser.phoneVerified === false) {
+    return <Navigate to="/verify-phone" replace />;
+  }
+
   if (allowedRole && currentUser.role !== allowedRole) {
     return <Navigate to={currentUser.role === 'borrower' ? '/borrower/dashboard' : '/lender/dashboard'} replace />;
   }
@@ -101,6 +116,12 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRole }
 const DashboardRedirect: React.FC = () => {
   const { currentUser } = useAuthMock();
   if (!currentUser) return <Navigate to="/login" replace />;
+
+  const isDemoUser = currentUser.id === DEMO_BORROWER_ID || currentUser.id === DEMO_LENDER_ID || currentUser.isTestAccount;
+  if (!isDemoUser && currentUser.phoneVerified === false) {
+    return <Navigate to="/verify-phone" replace />;
+  }
+
   return currentUser.role === 'borrower'
     ? <Navigate to="/borrower/dashboard" replace />
     : <Navigate to="/lender/dashboard" replace />;
@@ -138,6 +159,7 @@ export const AppRoutes: React.FC = () => {
           <Route path="/contact" element={<ContactPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/verify-phone" element={<PhoneVerificationPage />} />
           <Route path="/profile" element={
             <ProtectedRoute>
               <ProfilePage />

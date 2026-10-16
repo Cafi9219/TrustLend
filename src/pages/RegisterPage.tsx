@@ -1,21 +1,29 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Shield, Eye, EyeOff, Lock, Mail, User, ArrowRight, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Eye, EyeOff, Lock, Mail, User, Phone, ArrowRight, AlertCircle, Globe } from 'lucide-react';
 import { useAuthMock } from '../hooks/useAuthMock';
-import { UserRole } from '../types';
+import {
+  SUPPORTED_REGIONS,
+  getRegionByCode,
+  validatePhoneNumber,
+  extractDigits,
+} from '../utils/phoneValidation';
 
 export const RegisterPage: React.FC = () => {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState<UserRole>('lender');
+  const [selectedRegion, setSelectedRegion] = useState('IN');
+  const [phone, setPhone] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const { register, logout } = useAuthMock();
+  const { register } = useAuthMock();
   const navigate = useNavigate();
+
+  const currentRegion = getRegionByCode(selectedRegion);
 
   const getPasswordStrength = (pass: string) => {
     if (!pass) return { score: 0, label: 'None', color: 'bg-slate-200' };
@@ -53,6 +61,14 @@ export const RegisterPage: React.FC = () => {
       setError('Please enter a valid email address.');
       return;
     }
+
+    // Validate phone number according to selected region
+    const phoneValidation = validatePhoneNumber(selectedRegion, phone);
+    if (!phoneValidation.isValid) {
+      setError(phoneValidation.error || 'Please enter a valid phone number for the selected country.');
+      return;
+    }
+
     if (!password || password.length < 6) {
       setError('Password must contain at least 6 characters.');
       return;
@@ -68,13 +84,15 @@ export const RegisterPage: React.FC = () => {
         fullName,
         email,
         password,
-        role,
+        phone,
+        phoneRegion: selectedRegion,
+        phoneDialCode: currentRegion.dialCode,
         acceptTerms,
       });
 
-      // New user: Register → Choose Your Path
+      // Clear any prior path and navigate to Phone Verification
       sessionStorage.removeItem('trustlend_home_selected_path');
-      navigate('/', { replace: true });
+      navigate('/verify-phone', { replace: true });
     } catch (err: any) {
       setError(err?.message || 'Registration failed. Please check your information.');
     } finally {
@@ -83,8 +101,8 @@ export const RegisterPage: React.FC = () => {
   };
 
   return (
-    <div className="w-full flex items-center justify-center">
-      <div className="max-w-xl w-full space-y-4 sm:space-y-5">
+    <div className="w-full flex items-center justify-center py-6 sm:py-10">
+      <div className="max-w-xl w-full space-y-4 sm:space-y-5 px-4 sm:px-0">
         {/* Title */}
         <div className="text-center">
           <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
@@ -105,56 +123,10 @@ export const RegisterPage: React.FC = () => {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Role Selection: Borrow Capital or Lend & Earn */}
-            <div>
-              <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1.5">
-                Select Your Account Role *
-              </label>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setRole('lender')}
-                  className={`p-3.5 rounded-2xl border-2 text-left transition-all ${
-                    role === 'lender'
-                      ? 'border-emerald-600 bg-emerald-50/70 shadow-xs ring-2 ring-emerald-500/20'
-                      : 'border-slate-200 bg-slate-50/50 hover:bg-white hover:border-slate-300'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-bold text-slate-900">Lend & Earn</span>
-                    {role === 'lender' && (
-                      <span className="w-4 h-4 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px]">✓</span>
-                    )}
-                  </div>
-                  <span className="text-[11px] text-emerald-700 font-semibold block">Fixed 9.5% Net APY</span>
-                  <span className="text-[10px] text-slate-500">Deploy capital & earn monthly cashflow</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setRole('borrower')}
-                  className={`p-3.5 rounded-2xl border-2 text-left transition-all ${
-                    role === 'borrower'
-                      ? 'border-blue-600 bg-blue-50/70 shadow-xs ring-2 ring-blue-500/20'
-                      : 'border-slate-200 bg-slate-50/50 hover:bg-white hover:border-slate-300'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-bold text-slate-900">Borrow Capital</span>
-                    {role === 'borrower' && (
-                      <span className="w-4 h-4 rounded-full bg-blue-600 text-white flex items-center justify-center text-[10px]">✓</span>
-                    )}
-                  </div>
-                  <span className="text-[11px] text-blue-700 font-semibold block">Fixed 9.5% p.a. EMI</span>
-                  <span className="text-[10px] text-slate-500">Peer micro-credit with zero penalties</span>
-                </button>
-              </div>
-            </div>
-
             {/* Legal Full Name */}
             <div>
               <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1.5">
-                Legal Full Name (as per PAN / Aadhaar)
+                Legal Full Name *
               </label>
               <div className="relative">
                 <User className="w-5 h-5 text-slate-400 absolute left-3.5 top-3.5" />
@@ -164,15 +136,16 @@ export const RegisterPage: React.FC = () => {
                   onChange={(e) => setFullName(e.target.value)}
                   placeholder="e.g. Rohan Mehra"
                   autoComplete="name"
+                  required
                   className="w-full pl-11 pr-4 py-3 rounded-xl border border-slate-300 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
                 />
               </div>
             </div>
 
-            {/* Email */}
+            {/* Email Address */}
             <div>
               <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1.5">
-                Email Address
+                Email Address *
               </label>
               <div className="relative">
                 <Mail className="w-5 h-5 text-slate-400 absolute left-3.5 top-3.5" />
@@ -182,15 +155,59 @@ export const RegisterPage: React.FC = () => {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="name@example.com"
                   autoComplete="email"
+                  required
                   className="w-full pl-11 pr-4 py-3 rounded-xl border border-slate-300 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
                 />
               </div>
             </div>
 
-            {/* Password */}
+            {/* Phone Number with Region / Country Code Selector */}
             <div>
               <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1.5">
-                Create Password
+                Mobile Phone Number *
+              </label>
+              <div className="flex gap-2">
+                {/* Region Selector */}
+                <div className="relative w-36 sm:w-44 shrink-0">
+                  <Globe className="w-4 h-4 text-slate-400 absolute left-3 top-3.5 pointer-events-none" />
+                  <select
+                    value={selectedRegion}
+                    onChange={(e) => setSelectedRegion(e.target.value)}
+                    aria-label="Country region dialing code"
+                    className="w-full pl-9 pr-7 py-3 rounded-xl border border-slate-300 text-xs sm:text-sm font-semibold bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all cursor-pointer truncate"
+                  >
+                    {SUPPORTED_REGIONS.map((r) => (
+                      <option key={r.code} value={r.code}>
+                        {r.flag} {r.code} ({r.dialCode})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Local Number Input */}
+                <div className="relative flex-1">
+                  <Phone className="w-5 h-5 text-slate-400 absolute left-3.5 top-3.5" />
+                  <input
+                    type="tel"
+                    inputMode="numeric"
+                    value={phone}
+                    onChange={(e) => setPhone(extractDigits(e.target.value))}
+                    placeholder={currentRegion.placeholder}
+                    autoComplete="tel"
+                    required
+                    className="w-full pl-11 pr-4 py-3 rounded-xl border border-slate-300 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                  />
+                </div>
+              </div>
+              <span className="text-[11px] text-slate-400 mt-1 block">
+                Region: {currentRegion.name} ({currentRegion.dialCode}) • {currentRegion.patternDesc}
+              </span>
+            </div>
+
+            {/* Create Password */}
+            <div>
+              <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1.5">
+                Create Password *
               </label>
               <div className="relative">
                 <Lock className="w-5 h-5 text-slate-400 absolute left-3.5 top-3.5" />
@@ -200,6 +217,7 @@ export const RegisterPage: React.FC = () => {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="At least 6 characters"
                   autoComplete="new-password"
+                  required
                   className="w-full pl-11 pr-11 py-3 rounded-xl border border-slate-300 text-sm sm:text-base focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
                 />
                 <button
@@ -235,11 +253,12 @@ export const RegisterPage: React.FC = () => {
                   type="checkbox"
                   checked={acceptTerms}
                   onChange={(e) => setAcceptTerms(e.target.checked)}
-                  className="w-4 h-4 mt-0.5 rounded text-blue-600 border-slate-300"
+                  required
+                  className="w-4 h-4 mt-0.5 rounded text-blue-600 border-slate-300 cursor-pointer"
                 />
                 <span className="text-xs sm:text-sm text-slate-600 leading-relaxed">
                   I agree to the <span className="text-blue-600 underline">Terms of Service</span>,{' '}
-                  <span className="text-blue-600 underline">Privacy Policy</span>, and consent to electronic disclosures for peer-to-peer micro-lending in India.
+                  <span className="text-blue-600 underline">Privacy Policy</span>, and consent to electronic phone verification for peer-to-peer micro-lending.
                 </span>
               </label>
             </div>
@@ -248,13 +267,13 @@ export const RegisterPage: React.FC = () => {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full py-3.5 sm:py-4 px-6 rounded-xl font-bold text-white transition-all shadow-sm hover:shadow flex items-center justify-center gap-2 text-sm sm:text-base disabled:opacity-50 mt-2 bg-blue-600 hover:bg-blue-700"
+              className="w-full py-3.5 sm:py-4 px-6 rounded-xl font-bold text-white transition-all shadow-sm hover:shadow flex items-center justify-center gap-2 text-sm sm:text-base disabled:opacity-50 mt-2 bg-blue-600 hover:bg-blue-700 cursor-pointer"
             >
               {isSubmitting ? (
-                <span>Creating account...</span>
+                <span>Registering Account...</span>
               ) : (
                 <>
-                  <span>Create Account</span>
+                  <span>Create Account & Verify Phone</span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}

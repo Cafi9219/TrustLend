@@ -8,6 +8,11 @@ export interface User {
   avatarUrl?: string;
   createdAt: string;
   phone?: string;
+  phoneRegion?: string;
+  phoneDialCode?: string;
+  phoneVerified?: boolean;
+  phoneVerifiedAt?: string;
+  roleSelected?: boolean;
   kycVerified?: boolean;
   walletBalance?: number;
   isTestAccount?: boolean;

@@ -10,6 +10,7 @@ interface AuthContextType {
   register: (data: RegisterData) => Promise<User>;
   switchRole: (newRole: UserRole) => Promise<User | null>;
   logout: () => Promise<void>;
+  refreshUser: () => User | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -52,6 +53,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     setIsLoading(false);
   }, []);
+
+  useEffect(() => {
+    const unsub = dbService.subscribe((type, payload) => {
+      if (type === 'user_updated' && payload?.user) {
+        setCurrentUser(payload.user);
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  const refreshUser = () => {
+    const updated = mockAuthService.getCurrentUser();
+    setCurrentUser(updated);
+    return updated;
+  };
 
   const login = async (credentials: LoginCredentials) => {
     setIsLoading(true);
@@ -97,7 +113,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ currentUser, isLoading, login, register, switchRole, logout }}>
+    <AuthContext.Provider value={{ currentUser, isLoading, login, register, switchRole, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

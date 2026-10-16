@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, Navigate } from 'react-router-dom';
 import { HandCoins, TrendingUp, Sparkles, ArrowRight, ArrowLeft } from 'lucide-react';
 import { useAuthMock } from '../hooks/useAuthMock';
 import { PublicLandingView } from '../components/home/PublicLandingView';
@@ -19,11 +19,18 @@ export const HomePage: React.FC = () => {
   const stateMode = (location.state as { mode?: 'borrow' | 'lend' } | null)?.mode;
 
   // For demo users: skip path selection directly into their mode.
-  // For authenticated real users: preserve previously selected path in session so returning to Home keeps it as left earlier.
+  // For new regular users without role selected yet: enforce Screen 1 ("Choose Your Path").
+  // For authenticated real users with saved role: preserve selected role / session.
   const getInitialPath = (): 'borrow' | 'lend' | null => {
     if (isDemoBorrower) return 'borrow';
     if (isDemoLender) return 'lend';
     if (stateMode === 'borrow' || stateMode === 'lend') return stateMode;
+    if (currentUser && currentUser.roleSelected === false) {
+      return null;
+    }
+    if (currentUser?.roleSelected) {
+      return currentUser.role === 'borrower' ? 'borrow' : 'lend';
+    }
     try {
       const saved = sessionStorage.getItem('trustlend_home_selected_path');
       if (saved === 'borrow' || saved === 'lend') return saved;
@@ -54,9 +61,7 @@ export const HomePage: React.FC = () => {
     } catch {}
     if (currentUser) {
       const targetRole = path === 'borrow' ? 'borrower' : 'lender';
-      if (currentUser.role !== targetRole) {
-        await switchRole(targetRole);
-      }
+      await switchRole(targetRole);
     }
   };
 
@@ -70,6 +75,11 @@ export const HomePage: React.FC = () => {
   // If visitor is unauthenticated, show the minimal Stage A public landing page
   if (!currentUser) {
     return <PublicLandingView />;
+  }
+
+  // Non-demo users must verify their phone before selecting a path or accessing tools
+  if (!isDemoUser && currentUser.phoneVerified === false) {
+    return <Navigate to="/verify-phone" replace />;
   }
 
   // SCREEN 1: Dedicated "Choose Your Path" screen (No calculators shown!)

@@ -15,7 +15,9 @@ export interface RegisterData {
   fullName: string;
   email: string;
   password?: string;
-  role: UserRole;
+  phone: string;
+  phoneRegion: string;
+  phoneDialCode: string;
   acceptTerms: boolean;
 }
 
@@ -72,12 +74,16 @@ export const mockAuthService = {
             avatarUrl: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(formattedName)}`,
             createdAt: new Date().toISOString(),
             phone: '+91 98765 43210',
+            phoneRegion: 'IN',
+            phoneDialCode: '+91',
+            phoneVerified: true,
+            roleSelected: true,
             kycVerified: true,
           };
           dbService.saveUser(user);
         } else if (credentials.role && user.role !== credentials.role && user.id !== DEMO_BORROWER_ID && user.id !== DEMO_LENDER_ID) {
-          // Allow switching role on login if requested for newly registered accounts
           user.role = credentials.role;
+          user.roleSelected = true;
           dbService.saveUser(user);
         }
 
@@ -98,11 +104,15 @@ export const mockAuthService = {
     return new Promise((resolve, reject) => {
       setTimeout(() => {
         if (!data.fullName.trim()) {
-          reject(new Error('Please enter your full name.'));
+          reject(new Error('Please enter your full legal name.'));
           return;
         }
         if (!data.email || !data.email.includes('@')) {
           reject(new Error('Please enter a valid email address.'));
+          return;
+        }
+        if (!data.phone || !data.phone.trim()) {
+          reject(new Error('Please provide your mobile phone number.'));
           return;
         }
         if (!data.acceptTerms) {
@@ -111,33 +121,39 @@ export const mockAuthService = {
         }
 
         const normalizedEmail = data.email.trim().toLowerCase();
-        let user = dbService.getUserByEmail(normalizedEmail);
+        const existingUser = dbService.getUserByEmail(normalizedEmail);
 
-        if (user) {
-          user.name = data.fullName.trim();
-          user.role = data.role || 'borrower';
-          user.isTestAccount = false;
-          dbService.saveUser(user);
-        } else {
-          user = {
-            id: 'usr_' + Math.random().toString(36).substring(2, 9),
-            name: data.fullName.trim(),
-            email: data.email.trim(),
-            role: data.role || 'borrower',
-            avatarUrl: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(data.fullName.trim())}`,
-            createdAt: new Date().toISOString(),
-            phone: '+91 98765 43210',
-            kycVerified: true,
-            walletBalance: 0,
-            isTestAccount: false,
-          };
-          dbService.saveUser(user);
+        if (existingUser && existingUser.id !== DEMO_BORROWER_ID && existingUser.id !== DEMO_LENDER_ID) {
+          reject(new Error('An account with this email address already exists. Please sign in.'));
+          return;
         }
+
+        const normalizedDigits = data.phone.replace(/\D/g, '');
+        const normalizedPhone = `${data.phoneDialCode}${normalizedDigits}`;
+
+        // Create new regular user with phoneVerified: false and roleSelected: false
+        const user: User = {
+          id: 'usr_' + Math.random().toString(36).substring(2, 9),
+          name: data.fullName.trim(),
+          email: normalizedEmail,
+          role: 'borrower', // Initial default until Choose Your Path selection
+          avatarUrl: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(data.fullName.trim())}`,
+          createdAt: new Date().toISOString(),
+          phone: normalizedPhone,
+          phoneRegion: data.phoneRegion,
+          phoneDialCode: data.phoneDialCode,
+          phoneVerified: false,
+          roleSelected: false,
+          kycVerified: false,
+          walletBalance: 0,
+          isTestAccount: false,
+        };
+        dbService.saveUser(user);
 
         // Securely hash and store user password credential in internal backend store
         if (data.password) {
           hashPassword(data.password).then(({ hash }) => {
-            dbService.saveCredential(user!.id, hash);
+            dbService.saveCredential(user.id, hash);
           }).catch(console.error);
         }
 
@@ -145,6 +161,17 @@ export const mockAuthService = {
         resolve(user);
       }, 300);
     });
+  },
+
+  updateSessionUser(user: User): void {
+    try {
+      dbService.saveUser(user);
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+      }
+    } catch (e) {
+      console.error('Failed to update session user:', e);
+    }
   },
 
   switchRole(newRole: UserRole): Promise<User | null> {
@@ -157,6 +184,7 @@ export const mockAuthService = {
       const updated: User = {
         ...current,
         role: newRole,
+        roleSelected: true,
       };
       dbService.saveUser(updated);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
