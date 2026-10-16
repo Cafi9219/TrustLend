@@ -242,11 +242,18 @@ class DatabaseService {
     }
   }
 
+  private memoryCache: Map<string, any> = new Map();
+
   private getItem<T>(key: string, defaultValue: T): T {
     try {
+      if (this.memoryCache.has(key)) {
+        return this.memoryCache.get(key) as T;
+      }
       if (typeof localStorage === 'undefined') return defaultValue;
       const data = localStorage.getItem(key);
-      return data ? JSON.parse(data) : defaultValue;
+      const parsed = data ? JSON.parse(data) : defaultValue;
+      this.memoryCache.set(key, parsed);
+      return parsed;
     } catch {
       return defaultValue;
     }
@@ -254,6 +261,7 @@ class DatabaseService {
 
   private setItem<T>(key: string, value: T): void {
     try {
+      this.memoryCache.set(key, value);
       if (typeof localStorage === 'undefined') return;
       localStorage.setItem(key, JSON.stringify(value));
     } catch (e) {
@@ -779,6 +787,7 @@ class DatabaseService {
       } catch {}
     }
 
+    this.memoryCache.clear();
     this.notify('user_purged', { emailOrId });
   }
 

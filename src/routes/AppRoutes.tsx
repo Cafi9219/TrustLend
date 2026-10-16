@@ -1,33 +1,46 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, Suspense, lazy } from 'react';
 import { Routes, Route, Navigate, Link, useNavigate, useLocation } from 'react-router-dom';
 import { MainLayout } from '../layouts/MainLayout';
-import { HomePage } from '../pages/HomePage';
-import { HowItWorksPage } from '../pages/HowItWorksPage';
-import { AboutPage } from '../pages/AboutPage';
-import { ContactPage } from '../pages/ContactPage';
-import { LoginPage } from '../pages/LoginPage';
-import { RegisterPage } from '../pages/RegisterPage';
-import { ProfilePage } from '../pages/ProfilePage';
-import { PhoneVerificationPage } from '../pages/PhoneVerificationPage';
-import { IdentityVerificationPage } from '../pages/IdentityVerificationPage';
 import { DEMO_BORROWER_ID, DEMO_LENDER_ID } from '../services/dbService';
 
-// Borrower Pages
-import { BorrowerDashboardPage } from '../pages/borrower/BorrowerDashboardPage';
-import { MyLoansPage } from '../pages/borrower/MyLoansPage';
-import { LoanApplicationsPage } from '../pages/borrower/LoanApplicationsPage';
-import { LoanDetailsPage } from '../pages/borrower/LoanDetailsPage';
-import { RepaymentStatusPage } from '../pages/borrower/RepaymentStatusPage';
+// Lazy-loaded Core Global Pages
+const HomePage = lazy(() => import('../pages/HomePage').then(m => ({ default: m.HomePage })));
+const HowItWorksPage = lazy(() => import('../pages/HowItWorksPage').then(m => ({ default: m.HowItWorksPage })));
+const AboutPage = lazy(() => import('../pages/AboutPage').then(m => ({ default: m.AboutPage })));
+const ContactPage = lazy(() => import('../pages/ContactPage').then(m => ({ default: m.ContactPage })));
+const LoginPage = lazy(() => import('../pages/LoginPage').then(m => ({ default: m.LoginPage })));
+const RegisterPage = lazy(() => import('../pages/RegisterPage').then(m => ({ default: m.RegisterPage })));
+const ProfilePage = lazy(() => import('../pages/ProfilePage').then(m => ({ default: m.ProfilePage })));
+const PhoneVerificationPage = lazy(() => import('../pages/PhoneVerificationPage').then(m => ({ default: m.PhoneVerificationPage })));
+const IdentityVerificationPage = lazy(() => import('../pages/IdentityVerificationPage').then(m => ({ default: m.IdentityVerificationPage })));
 
-// Lender Pages
-import { LenderDashboardPage } from '../pages/lender/LenderDashboardPage';
-import { BrowseOpportunitiesPage } from '../pages/lender/BrowseOpportunitiesPage';
-import { InvestmentsPage } from '../pages/lender/InvestmentsPage';
-import { ReturnsPage } from '../pages/lender/ReturnsPage';
+// Lazy-loaded Borrower Pages
+const BorrowerDashboardPage = lazy(() => import('../pages/borrower/BorrowerDashboardPage').then(m => ({ default: m.BorrowerDashboardPage })));
+const MyLoansPage = lazy(() => import('../pages/borrower/MyLoansPage').then(m => ({ default: m.MyLoansPage })));
+const LoanApplicationsPage = lazy(() => import('../pages/borrower/LoanApplicationsPage').then(m => ({ default: m.LoanApplicationsPage })));
+const LoanDetailsPage = lazy(() => import('../pages/borrower/LoanDetailsPage').then(m => ({ default: m.LoanDetailsPage })));
+const RepaymentStatusPage = lazy(() => import('../pages/borrower/RepaymentStatusPage').then(m => ({ default: m.RepaymentStatusPage })));
+
+// Lazy-loaded Lender Pages
+const LenderDashboardPage = lazy(() => import('../pages/lender/LenderDashboardPage').then(m => ({ default: m.LenderDashboardPage })));
+const BrowseOpportunitiesPage = lazy(() => import('../pages/lender/BrowseOpportunitiesPage').then(m => ({ default: m.BrowseOpportunitiesPage })));
+const InvestmentsPage = lazy(() => import('../pages/lender/InvestmentsPage').then(m => ({ default: m.InvestmentsPage })));
+const ReturnsPage = lazy(() => import('../pages/lender/ReturnsPage').then(m => ({ default: m.ReturnsPage })));
 
 import { useAuthMock } from '../hooks/useAuthMock';
-import { ShieldAlert, ArrowLeft } from 'lucide-react';
+import { ShieldAlert, ArrowLeft, Loader2 } from 'lucide-react';
 import { UserRole } from '../types';
+
+const PageLoader: React.FC = () => (
+  <div className="min-h-[50vh] flex flex-col items-center justify-center p-8 space-y-3">
+    <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center shadow-xs">
+      <Loader2 className="w-5 h-5 animate-spin" />
+    </div>
+    <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+      Loading...
+    </span>
+  </div>
+);
 
 const LAST_ROUTE_KEY = 'trustlend_last_active_route';
 
@@ -162,77 +175,79 @@ export const AppRoutes: React.FC = () => {
   return (
     <>
       <RoutePersistenceManager />
-      <Routes>
-        <Route element={<MainLayout />}>
-          {/* Core Global Routes */}
-          <Route path="/" element={<HomePage />} />
-          <Route path="/how-it-works" element={<HowItWorksPage />} />
-          <Route path="/about" element={<AboutPage />} />
-          <Route path="/contact" element={<ContactPage />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-          <Route path="/verify-phone" element={<PhoneVerificationPage />} />
-          <Route path="/verify-identity" element={<IdentityVerificationPage />} />
-          <Route path="/profile" element={
-            <ProtectedRoute>
-              <ProfilePage />
-            </ProtectedRoute>
-          } />
-          <Route path="/dashboard" element={<DashboardRedirect />} />
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
+          <Route element={<MainLayout />}>
+            {/* Core Global Routes */}
+            <Route path="/" element={<HomePage />} />
+            <Route path="/how-it-works" element={<HowItWorksPage />} />
+            <Route path="/about" element={<AboutPage />} />
+            <Route path="/contact" element={<ContactPage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+            <Route path="/verify-phone" element={<PhoneVerificationPage />} />
+            <Route path="/verify-identity" element={<IdentityVerificationPage />} />
+            <Route path="/profile" element={
+              <ProtectedRoute>
+                <ProfilePage />
+              </ProtectedRoute>
+            } />
+            <Route path="/dashboard" element={<DashboardRedirect />} />
 
-          {/* Borrower-Only Routes */}
-          <Route path="/borrower/dashboard" element={
-            <ProtectedRoute allowedRole="borrower">
-              <BorrowerDashboardPage />
-            </ProtectedRoute>
-          } />
-          <Route path="/borrower/my-loans" element={
-            <ProtectedRoute allowedRole="borrower">
-              <MyLoansPage />
-            </ProtectedRoute>
-          } />
-          <Route path="/borrower/applications" element={
-            <ProtectedRoute allowedRole="borrower">
-              <LoanApplicationsPage />
-            </ProtectedRoute>
-          } />
-          <Route path="/borrower/requests/:id" element={
-            <ProtectedRoute allowedRole="borrower">
-              <LoanDetailsPage />
-            </ProtectedRoute>
-          } />
-          <Route path="/borrower/repayments" element={
-            <ProtectedRoute allowedRole="borrower">
-              <RepaymentStatusPage />
-            </ProtectedRoute>
-          } />
+            {/* Borrower-Only Routes */}
+            <Route path="/borrower/dashboard" element={
+              <ProtectedRoute allowedRole="borrower">
+                <BorrowerDashboardPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/borrower/my-loans" element={
+              <ProtectedRoute allowedRole="borrower">
+                <MyLoansPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/borrower/applications" element={
+              <ProtectedRoute allowedRole="borrower">
+                <LoanApplicationsPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/borrower/requests/:id" element={
+              <ProtectedRoute allowedRole="borrower">
+                <LoanDetailsPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/borrower/repayments" element={
+              <ProtectedRoute allowedRole="borrower">
+                <RepaymentStatusPage />
+              </ProtectedRoute>
+            } />
 
-          {/* Lender-Only Routes */}
-          <Route path="/lender/dashboard" element={
-            <ProtectedRoute allowedRole="lender">
-              <LenderDashboardPage />
-            </ProtectedRoute>
-          } />
-          <Route path="/lender/browse" element={
-            <ProtectedRoute allowedRole="lender">
-              <BrowseOpportunitiesPage />
-            </ProtectedRoute>
-          } />
-          <Route path="/lender/investments" element={
-            <ProtectedRoute allowedRole="lender">
-              <InvestmentsPage />
-            </ProtectedRoute>
-          } />
-          <Route path="/lender/returns" element={
-            <ProtectedRoute allowedRole="lender">
-              <ReturnsPage />
-            </ProtectedRoute>
-          } />
+            {/* Lender-Only Routes */}
+            <Route path="/lender/dashboard" element={
+              <ProtectedRoute allowedRole="lender">
+                <LenderDashboardPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/lender/browse" element={
+              <ProtectedRoute allowedRole="lender">
+                <BrowseOpportunitiesPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/lender/investments" element={
+              <ProtectedRoute allowedRole="lender">
+                <InvestmentsPage />
+              </ProtectedRoute>
+            } />
+            <Route path="/lender/returns" element={
+              <ProtectedRoute allowedRole="lender">
+                <ReturnsPage />
+              </ProtectedRoute>
+            } />
 
-          {/* Fallback */}
-          <Route path="*" element={<NotFoundPage />} />
-        </Route>
-      </Routes>
+            {/* Fallback */}
+            <Route path="*" element={<NotFoundPage />} />
+          </Route>
+        </Routes>
+      </Suspense>
     </>
   );
 };

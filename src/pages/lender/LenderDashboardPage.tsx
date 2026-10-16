@@ -15,8 +15,7 @@ import {
   Layers,
   ShieldCheck,
   X,
-  FileText,
-  Briefcase
+  FileText
 } from 'lucide-react';
 import { formatINR } from '../../utils/formatters';
 import { useAuthMock } from '../../hooks/useAuthMock';
