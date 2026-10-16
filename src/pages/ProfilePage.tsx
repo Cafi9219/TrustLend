@@ -78,13 +78,21 @@ export const ProfilePage: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 space-y-1">
             <span className="text-[11px] font-semibold text-slate-500 uppercase block">
-              Identity Verification (DigiLocker)
+              Identity Verification Status
             </span>
             <div className="flex items-center gap-2 text-sm font-bold text-emerald-700">
               <CheckCircle2 className="w-4 h-4" />
-              <span>PAN & Aadhaar Verified</span>
+              <span>
+                {currentUser.identityStatus === 'demo_verified'
+                  ? 'Simulated Demo Verified'
+                  : currentUser.identityStatus === 'verified'
+                  ? 'Authorized Provider Verified'
+                  : 'Pending Verification'}
+              </span>
             </div>
-            <div className="text-xs text-slate-400">Government KYC Complete</div>
+            <div className="text-xs text-slate-400">
+              {currentUser.identityProviderRef ? `Ref: ${currentUser.identityProviderRef}` : 'Account-Linked Identity Verification'}
+            </div>
           </div>
 
           <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 space-y-1">

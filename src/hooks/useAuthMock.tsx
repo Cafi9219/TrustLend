@@ -7,6 +7,8 @@ interface AuthContextType {
   currentUser: User | null;
   isLoading: boolean;
   login: (credentials: LoginCredentials) => Promise<User>;
+  initiateLogin: (credentials: LoginCredentials) => Promise<{ requires2fa: boolean; user?: User; pendingUser?: any }>;
+  completeLogin2fa: (userId: string, code: string) => Promise<User>;
   register: (data: RegisterData) => Promise<User>;
   switchRole: (newRole: UserRole) => Promise<User | null>;
   logout: () => Promise<void>;
@@ -80,6 +82,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const initiateLogin = async (credentials: LoginCredentials) => {
+    setIsLoading(true);
+    try {
+      const res = await mockAuthService.initiateLogin(credentials);
+      if (!res.requires2fa && res.user) {
+        setCurrentUser(res.user);
+      }
+      return res;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const completeLogin2fa = async (userId: string, code: string) => {
+    setIsLoading(true);
+    try {
+      const user = await mockAuthService.completeLogin2fa(userId, code);
+      setCurrentUser(user);
+      return user;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const register = async (data: RegisterData) => {
     setIsLoading(true);
     try {
@@ -113,7 +139,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ currentUser, isLoading, login, register, switchRole, logout, refreshUser }}>
+    <AuthContext.Provider value={{ currentUser, isLoading, login, initiateLogin, completeLogin2fa, register, switchRole, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

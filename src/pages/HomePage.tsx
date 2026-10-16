@@ -82,6 +82,11 @@ export const HomePage: React.FC = () => {
     return <Navigate to="/verify-phone" replace />;
   }
 
+  // Non-demo users must complete identity verification before selecting a path or accessing tools
+  if (!isDemoUser && currentUser.identityStatus !== 'verified') {
+    return <Navigate to="/verify-identity" replace />;
+  }
+
   // SCREEN 1: Dedicated "Choose Your Path" screen (No calculators shown!)
   if (!selectedPath) {
     return (

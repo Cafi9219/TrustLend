@@ -9,6 +9,7 @@ import { LoginPage } from '../pages/LoginPage';
 import { RegisterPage } from '../pages/RegisterPage';
 import { ProfilePage } from '../pages/ProfilePage';
 import { PhoneVerificationPage } from '../pages/PhoneVerificationPage';
+import { IdentityVerificationPage } from '../pages/IdentityVerificationPage';
 import { DEMO_BORROWER_ID, DEMO_LENDER_ID } from '../services/dbService';
 
 // Borrower Pages
@@ -73,14 +74,15 @@ const RoutePersistenceManager: React.FC = () => {
     }
   }, []);
 
-  // Save current route whenever navigating (excluding login/register/home/verify-phone)
+  // Save current route whenever navigating (excluding login/register/home/verify-phone/verify-identity)
   useEffect(() => {
     if (
       location.pathname &&
       location.pathname !== '/' &&
       location.pathname !== '/login' &&
       location.pathname !== '/register' &&
-      location.pathname !== '/verify-phone'
+      location.pathname !== '/verify-phone' &&
+      location.pathname !== '/verify-identity'
     ) {
       localStorage.setItem(LAST_ROUTE_KEY, location.pathname);
     }
@@ -101,10 +103,15 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowedRole }
     return <Navigate to="/" replace />;
   }
 
-  // Non-demo users must have verified phone number before accessing protected routes
+  // Non-demo users must have verified phone number and verified identity before accessing protected routes
   const isDemoUser = currentUser.id === DEMO_BORROWER_ID || currentUser.id === DEMO_LENDER_ID || currentUser.isTestAccount;
-  if (!isDemoUser && currentUser.phoneVerified === false) {
-    return <Navigate to="/verify-phone" replace />;
+  if (!isDemoUser) {
+    if (currentUser.phoneVerified === false) {
+      return <Navigate to="/verify-phone" replace />;
+    }
+    if (currentUser.identityStatus !== 'verified') {
+      return <Navigate to="/verify-identity" replace />;
+    }
   }
 
   if (allowedRole && currentUser.role !== allowedRole) {
@@ -118,8 +125,13 @@ const DashboardRedirect: React.FC = () => {
   if (!currentUser) return <Navigate to="/login" replace />;
 
   const isDemoUser = currentUser.id === DEMO_BORROWER_ID || currentUser.id === DEMO_LENDER_ID || currentUser.isTestAccount;
-  if (!isDemoUser && currentUser.phoneVerified === false) {
-    return <Navigate to="/verify-phone" replace />;
+  if (!isDemoUser) {
+    if (currentUser.phoneVerified === false) {
+      return <Navigate to="/verify-phone" replace />;
+    }
+    if (currentUser.identityStatus !== 'verified') {
+      return <Navigate to="/verify-identity" replace />;
+    }
   }
 
   return currentUser.role === 'borrower'
@@ -160,6 +172,7 @@ export const AppRoutes: React.FC = () => {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/verify-phone" element={<PhoneVerificationPage />} />
+          <Route path="/verify-identity" element={<IdentityVerificationPage />} />
           <Route path="/profile" element={
             <ProtectedRoute>
               <ProfilePage />

@@ -37,7 +37,7 @@ export const LoginPage: React.FC = () => {
   const [submittingTarget, setSubmittingTarget] = useState<'account' | 'borrower' | 'lender' | null>(null);
   const [showForgotModal, setShowForgotModal] = useState(false);
 
-  const { login } = useAuthMock();
+  const { login, initiateLogin } = useAuthMock();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -57,7 +57,21 @@ export const LoginPage: React.FC = () => {
     try {
       setIsSubmitting(true);
       setSubmittingTarget('account');
-      const user = await login({ email, password, rememberMe, role });
+      const res = await initiateLogin({ email, password, rememberMe, role });
+      
+      if (res.requires2fa) {
+        // Regular user: Two-Factor Authentication required on every login
+        navigate('/verify-phone', {
+          state: {
+            mode: 'login_2fa',
+            pendingUser: res.pendingUser,
+          },
+          replace: true,
+        });
+        return;
+      }
+
+      const user = res.user!;
       const isDemo = user.id === 'usr_demo_lender' || user.id === 'usr_demo_borrower' || !!user.isTestAccount;
       if (isDemo) {
         if (user.role === 'lender') {
@@ -66,9 +80,15 @@ export const LoginPage: React.FC = () => {
           navigate('/borrower/dashboard', { replace: true });
         }
       } else {
-        // Regular user: Sign In → Choose Your Path
-        sessionStorage.removeItem('trustlend_home_selected_path');
-        navigate('/', { replace: true });
+        // Regular user: Check identity verification before role/dashboard
+        if (user.identityStatus !== 'verified') {
+          navigate('/verify-identity', { replace: true });
+        } else if (user.roleSelected === false) {
+          sessionStorage.removeItem('trustlend_home_selected_path');
+          navigate('/', { replace: true });
+        } else {
+          navigate(user.role === 'borrower' ? '/borrower/dashboard' : '/lender/dashboard', { replace: true });
+        }
       }
     } catch (err: any) {
       setError(err?.message || 'Authentication failed. Please verify credentials.');
@@ -78,7 +98,7 @@ export const LoginPage: React.FC = () => {
     }
   };
 
-  const handleQuickDemo = async (selectedRole: UserRole) => {
+  const handleQuickDemo = async (selectedRole: UserRole, targetView: 'dashboard' | 'verify' = 'dashboard') => {
     if (isSubmitting) return;
     setError('');
     setIsSubmitting(true);
@@ -95,12 +115,16 @@ export const LoginPage: React.FC = () => {
         role: selectedRole,
       });
 
-      // Demo Borrower opens calculator directly in Borrower mode
-      // Demo Lender opens calculator directly in Lender mode
-      navigate('/', {
-        replace: true,
-        state: { mode: selectedRole === 'borrower' ? 'borrow' : 'lend' }
-      });
+      if (targetView === 'verify') {
+        navigate('/verify-identity', { replace: true });
+      } else {
+        // Demo Borrower opens calculator directly in Borrower mode
+        // Demo Lender opens calculator directly in Lender mode
+        navigate('/', {
+          replace: true,
+          state: { mode: selectedRole === 'borrower' ? 'borrow' : 'lend' }
+        });
+      }
     } catch (err: any) {
       setError(err?.message || 'Failed to sign in with demo account.');
     } finally {
@@ -327,24 +351,34 @@ export const LoginPage: React.FC = () => {
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => handleQuickDemo('borrower')}
-                    disabled={isSubmitting}
-                    className="w-full py-2.5 px-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 active:scale-[0.99] motion-reduce:transform-none"
-                  >
-                    {isSubmitting && submittingTarget === 'borrower' ? (
-                      <span className="flex items-center gap-2">
-                        <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        <span>Launching Borrower Mode...</span>
-                      </span>
-                    ) : (
-                      <>
-                        <span>Login as Demo Borrower</span>
-                        <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform motion-reduce:transform-none" />
-                      </>
-                    )}
-                  </button>
+                  <div className="space-y-2">
+                    <button
+                      type="button"
+                      onClick={() => handleQuickDemo('borrower')}
+                      disabled={isSubmitting}
+                      className="w-full py-2.5 px-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 active:scale-[0.99] motion-reduce:transform-none"
+                    >
+                      {isSubmitting && submittingTarget === 'borrower' ? (
+                        <span className="flex items-center gap-2">
+                          <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          <span>Launching Borrower Mode...</span>
+                        </span>
+                      ) : (
+                        <>
+                          <span>Login as Demo Borrower</span>
+                          <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform motion-reduce:transform-none" />
+                        </>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleQuickDemo('borrower', 'verify')}
+                      disabled={isSubmitting}
+                      className="w-full py-1.5 px-3 rounded-xl border border-blue-200 text-blue-700 hover:bg-blue-50 text-[11px] font-bold transition-colors flex items-center justify-center gap-1"
+                    >
+                      <span>Simulate ID Verification Flow</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Demo Lender Card */}
@@ -382,24 +416,34 @@ export const LoginPage: React.FC = () => {
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => handleQuickDemo('lender')}
-                    disabled={isSubmitting}
-                    className="w-full py-2.5 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 active:scale-[0.99] motion-reduce:transform-none"
-                  >
-                    {isSubmitting && submittingTarget === 'lender' ? (
-                      <span className="flex items-center gap-2">
-                        <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        <span>Launching Lender Mode...</span>
-                      </span>
-                    ) : (
-                      <>
-                        <span>Login as Demo Lender</span>
-                        <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform motion-reduce:transform-none" />
-                      </>
-                    )}
-                  </button>
+                  <div className="space-y-2">
+                    <button
+                      type="button"
+                      onClick={() => handleQuickDemo('lender')}
+                      disabled={isSubmitting}
+                      className="w-full py-2.5 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 active:scale-[0.99] motion-reduce:transform-none"
+                    >
+                      {isSubmitting && submittingTarget === 'lender' ? (
+                        <span className="flex items-center gap-2">
+                          <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          <span>Launching Lender Mode...</span>
+                        </span>
+                      ) : (
+                        <>
+                          <span>Login as Demo Lender</span>
+                          <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform motion-reduce:transform-none" />
+                        </>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleQuickDemo('lender', 'verify')}
+                      disabled={isSubmitting}
+                      className="w-full py-1.5 px-3 rounded-xl border border-emerald-200 text-emerald-700 hover:bg-emerald-50 text-[11px] font-bold transition-colors flex items-center justify-center gap-1"
+                    >
+                      <span>Simulate ID Verification Flow</span>
+                    </button>
+                  </div>
                 </div>
               </div>
 

@@ -10,7 +10,9 @@ import {
   PaymentMethodType,
   WalletTransaction,
   BorrowerLoanRequest,
-  LoanRequestStatus
+  LoanRequestStatus,
+  IdentityVerificationStatus,
+  IdentityVerificationRecord
 } from '../types';
 import { 
   MOCK_BORROWER_LOANS, 
@@ -41,6 +43,7 @@ const KEYS = {
   CREDENTIALS: 'trustlend_auth_credentials',
   PENDING_PAYMENTS: 'trustlend_db_pending_payments',
   WALLET_TRANSACTIONS: 'trustlend_db_wallet_transactions',
+  IDENTITY_VERIFICATIONS: 'trustlend_db_identity_verifications',
 };
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -294,7 +297,14 @@ class DatabaseService {
           avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
           createdAt: '2026-01-10T00:00:00.000Z',
           phone: '+91 98765 43210',
+          phoneRegion: 'IN',
+          phoneDialCode: '+91',
+          phoneVerified: true,
+          roleSelected: true,
           kycVerified: true,
+          identityStatus: 'demo_verified',
+          identityVerifiedAt: '2026-01-10T00:00:00.000Z',
+          identityProviderRef: 'SIM-PROV-DEMO-BORROWER',
           walletBalance: 0,
           isTestAccount: true,
         },
@@ -306,17 +316,43 @@ class DatabaseService {
           avatarUrl: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=150&auto=format&fit=crop&q=80',
           createdAt: '2026-01-10T00:00:00.000Z',
           phone: '+91 98765 43210',
+          phoneRegion: 'IN',
+          phoneDialCode: '+91',
+          phoneVerified: true,
+          roleSelected: true,
           kycVerified: true,
+          identityStatus: 'demo_verified',
+          identityVerifiedAt: '2026-01-10T00:00:00.000Z',
+          identityProviderRef: 'SIM-PROV-DEMO-LENDER',
           walletBalance: 0,
           isTestAccount: true,
         }
       ];
       this.setItem(KEYS.USERS, seededUsers);
     } else {
+      // Ensure existing demo users in localStorage have demo identity status
+      let changed = false;
+      const demoBorrower = existingUsers.find(u => u.id === DEMO_BORROWER_ID);
+      if (demoBorrower && (!demoBorrower.identityStatus || demoBorrower.phoneVerified === undefined)) {
+        demoBorrower.identityStatus = 'demo_verified';
+        demoBorrower.phoneVerified = true;
+        demoBorrower.roleSelected = true;
+        changed = true;
+      }
+      const demoLender = existingUsers.find(u => u.id === DEMO_LENDER_ID);
+      if (demoLender && (!demoLender.identityStatus || demoLender.phoneVerified === undefined)) {
+        demoLender.identityStatus = 'demo_verified';
+        demoLender.phoneVerified = true;
+        demoLender.roleSelected = true;
+        changed = true;
+      }
+      if (changed) {
+        this.setItem(KEYS.USERS, existingUsers);
+      }
+
       // One-time demo reset: ensure initial available wallet starts at 0 instead of fixed 50,000
       const RESET_KEY = 'trustlend_demo_wallet_zero_init_v1';
       if (!this.getItem<string | null>(RESET_KEY, null)) {
-        const demoLender = existingUsers.find(u => u.id === DEMO_LENDER_ID);
         if (demoLender) {
           demoLender.walletBalance = 0;
           this.setItem(KEYS.USERS, existingUsers);
@@ -1106,6 +1142,74 @@ class DatabaseService {
       return false;
     }
     return await this.verifyLenderPassword(user.id, candidatePassword);
+  }
+
+  // --- IDENTITY VERIFICATION METHODS (Account-Linked Verification) ---
+  public getIdentityVerification(userId: string): IdentityVerificationRecord | null {
+    this.ensureInitialized();
+    const all = this.getItem<Record<string, IdentityVerificationRecord>>(KEYS.IDENTITY_VERIFICATIONS, {});
+    return all[userId] || null;
+  }
+
+  public saveIdentityVerification(record: IdentityVerificationRecord): void {
+    this.ensureInitialized();
+    const all = this.getItem<Record<string, IdentityVerificationRecord>>(KEYS.IDENTITY_VERIFICATIONS, {});
+    
+    // Strict isolation enforcement:
+    // Demo verification can NEVER be applied to a regular user account.
+    // Real identity provider verification cannot be applied to demo accounts.
+    const user = this.getUserById(record.userId);
+    if (!user) throw new Error('User not found');
+    const isDemo = user.id === DEMO_BORROWER_ID || user.id === DEMO_LENDER_ID || !!user.isTestAccount;
+    
+    if (record.isSimulated && !isDemo) {
+      throw new Error('Security Violation: Simulated demo verification cannot be applied to regular user accounts.');
+    }
+    if (!record.isSimulated && isDemo) {
+      throw new Error('Security Violation: Real identity provider verification cannot be applied to demo accounts.');
+    }
+
+    all[record.userId] = record;
+    this.setItem(KEYS.IDENTITY_VERIFICATIONS, all);
+
+    // Update user entity on backend
+    user.identityStatus = record.status;
+    if (record.status === 'verified' || record.status === 'demo_verified') {
+      user.identityVerifiedAt = record.verifiedAt || new Date().toISOString();
+      user.identityProviderRef = record.providerReference;
+      user.kycVerified = true;
+    } else {
+      user.kycVerified = false;
+    }
+    this.saveUser(user);
+    this.notify('user_updated', { user });
+  }
+
+  public updateUserIdentityStatus(
+    userId: string, 
+    status: IdentityVerificationStatus, 
+    providerRef?: string
+  ): User | null {
+    this.ensureInitialized();
+    const user = this.getUserById(userId);
+    if (!user) return null;
+
+    const isDemo = user.id === DEMO_BORROWER_ID || user.id === DEMO_LENDER_ID || !!user.isTestAccount;
+    if (status === 'demo_verified' && !isDemo) {
+      throw new Error('Security Violation: Cannot set demo_verified on regular user account.');
+    }
+
+    user.identityStatus = status;
+    if (status === 'verified' || status === 'demo_verified') {
+      user.identityVerifiedAt = new Date().toISOString();
+      user.identityProviderRef = providerRef;
+      user.kycVerified = true;
+    } else {
+      user.kycVerified = false;
+    }
+    this.saveUser(user);
+    this.notify('user_updated', { user });
+    return user;
   }
 
   // --- LOAN METHODS (Borrower) ---

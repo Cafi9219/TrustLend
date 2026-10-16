@@ -1,5 +1,28 @@
 export type UserRole = 'borrower' | 'lender';
 
+export type IdentityVerificationStatus = 
+  | 'not_started' 
+  | 'pending' 
+  | 'verified' 
+  | 'rejected' 
+  | 'needs_review' 
+  | 'demo_verified';
+
+export interface IdentityVerificationRecord {
+  userId: string;
+  legalFullName: string;
+  dateOfBirth: string; // YYYY-MM-DD
+  idType: 'national_id' | 'passport' | 'drivers_license' | 'simulated_demo_id';
+  idNumberMasked?: string;
+  status: IdentityVerificationStatus;
+  providerName: string;
+  providerReference?: string;
+  submittedAt: string;
+  verifiedAt?: string;
+  rejectionReason?: string;
+  isSimulated: boolean;
+}
+
 export interface User {
   id: string;
   name: string;
@@ -14,6 +37,9 @@ export interface User {
   phoneVerifiedAt?: string;
   roleSelected?: boolean;
   kycVerified?: boolean;
+  identityStatus?: IdentityVerificationStatus;
+  identityVerifiedAt?: string;
+  identityProviderRef?: string;
   walletBalance?: number;
   isTestAccount?: boolean;
 }

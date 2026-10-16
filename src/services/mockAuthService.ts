@@ -1,6 +1,7 @@
 import { User, UserRole } from '../types';
 import { dbService, DEMO_BORROWER_ID, DEMO_LENDER_ID, DEMO_BORROWER_EMAIL, DEMO_LENDER_EMAIL } from './dbService';
 import { hashPassword } from '../utils/security';
+import { smsVerificationService } from './smsVerificationService';
 
 const STORAGE_KEY = 'trustlend_user_session';
 
@@ -36,68 +37,118 @@ export const mockAuthService = {
     }
   },
 
-  login(credentials: LoginCredentials): Promise<User> {
-    return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        if (!credentials.email || !credentials.email.includes('@')) {
-          reject(new Error('Please enter a valid email address.'));
-          return;
-        }
+  async initiateLogin(credentials: LoginCredentials): Promise<{ requires2fa: boolean; user?: User; pendingUser?: any }> {
+    if (!credentials.email || !credentials.email.includes('@')) {
+      throw new Error('Please enter a valid email address.');
+    }
 
-        const normalizedEmail = credentials.email.trim().toLowerCase();
-        let user: User | undefined;
+    const normalizedEmail = credentials.email.trim().toLowerCase();
+    let user: User | undefined;
 
-        if (normalizedEmail === DEMO_BORROWER_EMAIL.toLowerCase()) {
-          user = dbService.getUserById(DEMO_BORROWER_ID);
-        } else if (normalizedEmail === DEMO_LENDER_EMAIL.toLowerCase()) {
-          user = dbService.getUserById(DEMO_LENDER_ID);
-        } else {
-          user = dbService.getUserByEmail(normalizedEmail);
-        }
+    if (normalizedEmail === DEMO_BORROWER_EMAIL.toLowerCase()) {
+      user = dbService.getUserById(DEMO_BORROWER_ID);
+    } else if (normalizedEmail === DEMO_LENDER_EMAIL.toLowerCase()) {
+      user = dbService.getUserById(DEMO_LENDER_ID);
+    } else {
+      user = dbService.getUserByEmail(normalizedEmail);
+    }
 
-        if (!user) {
-          // If a new email is signing in directly
-          const namePart = credentials.email.split('@')[0];
-          const formattedName = namePart.charAt(0).toUpperCase() + namePart.slice(1);
-          let assignedRole: UserRole = credentials.role || 'borrower';
-          if (normalizedEmail.includes('lender')) {
-            assignedRole = 'lender';
-          } else if (normalizedEmail.includes('borrower')) {
-            assignedRole = 'borrower';
-          }
+    if (!user) {
+      throw new Error('No registered account found with this email. Please sign up first.');
+    }
 
-          user = {
-            id: 'usr_' + Math.random().toString(36).substring(2, 9),
-            name: formattedName,
-            email: credentials.email.trim(),
-            role: assignedRole,
-            avatarUrl: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(formattedName)}`,
-            createdAt: new Date().toISOString(),
-            phone: '+91 98765 43210',
-            phoneRegion: 'IN',
-            phoneDialCode: '+91',
-            phoneVerified: true,
-            roleSelected: true,
-            kycVerified: true,
-          };
-          dbService.saveUser(user);
-        } else if (credentials.role && user.role !== credentials.role && user.id !== DEMO_BORROWER_ID && user.id !== DEMO_LENDER_ID) {
-          user.role = credentials.role;
-          user.roleSelected = true;
-          dbService.saveUser(user);
-        }
+    const isDemo = user.id === DEMO_BORROWER_ID || user.id === DEMO_LENDER_ID || !!user.isTestAccount;
 
-        // Store / update password credential in database for transaction verification
-        if (credentials.password && user) {
-          hashPassword(credentials.password).then(({ hash }) => {
-            dbService.saveCredential(user!.id, hash);
-          }).catch(console.error);
-        }
+    // Verify password for regular users
+    if (credentials.password && !isDemo) {
+      const isValidPassword = await dbService.verifyUserCredentials(user.id, user.email, credentials.password);
+      if (!isValidPassword) {
+        throw new Error('Invalid email or password. Please check your credentials.');
+      }
+    }
 
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
-        resolve(user);
-      }, 300);
-    });
+    // Demo users bypass 2FA (Preserve 1-click demo login)
+    if (isDemo) {
+      if (credentials.role && user.role !== credentials.role) {
+        user.role = credentials.role;
+        user.roleSelected = true;
+        dbService.saveUser(user);
+      }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+      this.clearPending2fa();
+      return { requires2fa: false, user };
+    }
+
+    // Regular users: Enforce 2FA OTP verification on every login
+    const pending = {
+      userId: user.id,
+      email: user.email,
+      phone: user.phone || '',
+      phoneDialCode: user.phoneDialCode || '+91',
+      phoneRegion: user.phoneRegion || 'IN',
+      name: user.name,
+      createdAt: Date.now(),
+    };
+
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.setItem('trustlend_pending_2fa', JSON.stringify(pending));
+    }
+
+    // Request fresh 2FA OTP dispatch
+    if (user.phone) {
+      try {
+        await smsVerificationService.sendVerificationOtp(user.id, user.phone);
+      } catch (e) {
+        console.warn('SMS gateway notice during 2FA dispatch:', e);
+      }
+    }
+
+    return { requires2fa: true, pendingUser: pending };
+  },
+
+  async completeLogin2fa(userId: string, code: string): Promise<User> {
+    const user = dbService.getUserById(userId);
+    if (!user) throw new Error('User not found.');
+
+    // Verify code on backend
+    await smsVerificationService.verifyOtpCode(userId, code);
+
+    // Successful 2FA: establish authenticated session
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+    this.clearPending2fa();
+    return user;
+  },
+
+  getPending2fa(): any | null {
+    try {
+      if (typeof sessionStorage === 'undefined') return null;
+      const data = sessionStorage.getItem('trustlend_pending_2fa');
+      if (!data) return null;
+      const parsed = JSON.parse(data);
+      if (Date.now() - parsed.createdAt > 10 * 60 * 1000) {
+        sessionStorage.removeItem('trustlend_pending_2fa');
+        return null;
+      }
+      return parsed;
+    } catch {
+      return null;
+    }
+  },
+
+  clearPending2fa(): void {
+    try {
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.removeItem('trustlend_pending_2fa');
+      }
+    } catch {}
+  },
+
+  async login(credentials: LoginCredentials): Promise<User> {
+    const res = await this.initiateLogin(credentials);
+    if (res.requires2fa) {
+      throw new Error('2FA_REQUIRED');
+    }
+    return res.user!;
   },
 
   register(data: RegisterData): Promise<User> {
@@ -131,7 +182,7 @@ export const mockAuthService = {
         const normalizedDigits = data.phone.replace(/\D/g, '');
         const normalizedPhone = `${data.phoneDialCode}${normalizedDigits}`;
 
-        // Create new regular user with phoneVerified: false and roleSelected: false
+        // Create new regular user with phoneVerified: false, identityStatus: 'not_started', and roleSelected: false
         const user: User = {
           id: 'usr_' + Math.random().toString(36).substring(2, 9),
           name: data.fullName.trim(),
@@ -144,6 +195,7 @@ export const mockAuthService = {
           phoneDialCode: data.phoneDialCode,
           phoneVerified: false,
           roleSelected: false,
+          identityStatus: 'not_started',
           kycVerified: false,
           walletBalance: 0,
           isTestAccount: false,
